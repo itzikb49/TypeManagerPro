@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Type Manager Pro</Name>
+    <Assembly>TypeManagerPro.dll</Assembly>
+    <FullClassName>TypeManagerPro.Application</FullClassName>
+    <ClientId>A1B2C3D4-E5F6-7890-ABCD-1234567890AB</ClientId>
+    <VendorId>IB-BIM</VendorId>
+    <VendorDescription>IB-BIM Solutions</VendorDescription>
+    <Version>1.0.0</Version>
+  </AddIn>
+</RevitAddIns>

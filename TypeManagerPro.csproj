@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{D2D1ABD0-68B4-4370-A122-1D53F740D133}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>TypeManagerPro</RootNamespace>
+    <AssemblyName>TypeManagerPro</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <WarningLevel>4</WarningLevel>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="RevitAPI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2023\RevitAPI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2023\RevitAPIUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Application.cs" />
+    <Compile Include="Commands\OpenTypeManagerCommand.cs" />
+    <Compile Include="Helpers\Logger.cs" />
+    <Compile Include="Helpers\RenameHelper.cs" />
+    <Compile Include="Helpers\RevitCompatibilityExtensions.cs" />
+    <Compile Include="Helpers\TransactionHelper.cs" />
+    <Compile Include="Models\TypeItem.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Views\MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Views\RenameTypesView.xaml.cs">
+      <DependentUpon>RenameTypesView.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ViewModels\RenameTypesViewModel.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Resources\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="Views\MainWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\RenameTypesView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>set REVIT_VERSIONS=2023 2024 2025 2026
+echo Post-build: Copying Type Manager Pro to Revit versions: %25REVIT_VERSIONS%25
+
+if not exist "$(TargetPath)" (
+    echo ERROR: DLL NOT FOUND
+    exit /b 1
+)
+
+if not exist "$(ProjectDir)TypeManagerPro.addin" (
+    echo ERROR: ADDIN NOT FOUND
+    exit /b 1
+)
+
+for %25%25V in (%25REVIT_VERSIONS%25) do (
+    echo Copying to Revit %25%25V...
+    if not exist "C:\ProgramData\Autodesk\Revit\Addins\%25%25V" mkdir "C:\ProgramData\Autodesk\Revit\Addins\%25%25V"
+    
+    xcopy /Y /Q "$(TargetPath)" "C:\ProgramData\Autodesk\Revit\Addins\%25%25V\"
+    xcopy /Y /Q "$(ProjectDir)TypeManagerPro.addin" "C:\ProgramData\Autodesk\Revit\Addins\%25%25V\"
+    
+    if exist "$(TargetDir)$(TargetName).pdb" xcopy /Y /Q "$(TargetDir)$(TargetName).pdb" "C:\ProgramData\Autodesk\Revit\Addins\%25%25V\"
+    
+    echo   - TypeManagerPro.dll copied to %25%25V
+    echo   - TypeManagerPro.addin copied to %25%25V
+)
+
+echo Post-build completed for versions: %25REVIT_VERSIONS%25
+</PostBuildEvent>
+  </PropertyGroup>
+</Project>
