@@ -23,12 +23,61 @@ namespace TypeManagerPro
 
         public static bool EnableLogging = true;
 
+        /*
+        /// <summary>
+        /// מחיקת קבצי לוג - מתבצעת בתחילת כל הרצה
+        /// </summary>
+        public static void ClearLogFiles()
+        {
+            try
+            {
+                // בדוק אם התיקייה קיימת, אם לא - צור אותה
+                if (!Directory.Exists(LogDirectory))
+                {
+                    Directory.CreateDirectory(LogDirectory);
+                    return;
+                }
+
+                string[] logFiles = {
+                    Path.Combine(LogDirectory, "TypeManagerPro_Debug.log"),
+                    Path.Combine(LogDirectory, "Startup_Debug.log"),
+                    Path.Combine(LogDirectory, "UI_Debug.log")
+                };
+
+                foreach (string logFile in logFiles)
+                {
+                    if (File.Exists(logFile))
+                    {
+                        try
+                        {
+                            File.Delete(logFile);
+                        }
+                        catch
+                        {
+                            // אם הקובץ נעול, נסה לנקות את תוכנו
+                            try
+                            {
+                                File.WriteAllText(logFile, string.Empty);
+                            }
+                            catch
+                            {
+                                // Silent fail
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Silent fail
+            }
+        }
+        */
 
         // Application.cs - OnStartup מתוקן
 
         public Result OnStartup(UIControlledApplication application)
         {
-            Logger.Initialize();
             try
             {
                 // ========================================
@@ -39,7 +88,7 @@ namespace TypeManagerPro
                 string versionString = $"{version.Major}.{version.Minor}.{version.Build}";
 
                 Logger.Initialize("Type Manager Pro", versionString);
-                Logger.LogRevitInfo(application.ControlledApplication.VersionName);
+                Logger.LogRevitInfo(application.ControlledApplication);
 
                 Logger.Info(Logger.LogCategory.Main, "=== Type Manager Pro Startup ===");
                 Logger.Info(Logger.LogCategory.Main, $"Assembly: {assembly.Location}");

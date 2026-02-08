@@ -1,374 +1,231 @@
-﻿// Logger.cs
+﻿// Logger.cs - FIXED: Clears log file on each run
 using System;
 using System.IO;
-using System.Text;
 
 namespace TypeManagerPro.Helpers
 {
     /// <summary>
-    /// Logger for Type Manager Pro with separate log files per category
+    /// Simple file logger for debugging and error tracking
+    /// Log file is cleared on each application start
     /// </summary>
     public static class Logger
     {
-        #region Constants
-
-        private static readonly string LogDirectory;
-        private static readonly object LockObject = new object();
-
-        #endregion
-
-        #region Log Categories (Files)
+        private static string _logPath;
+        private static StreamWriter _logWriter;
+        private static readonly object _lock = new object();
 
         public enum LogCategory
         {
-            Main,       // TypeManagerPro-Main.log
-            Rename,     // TypeManagerPro-Rename.log
-            License,    // TypeManagerPro-License.log
-            Analytics,  // TypeManagerPro-Analytics.log
-            Excel,      // TypeManagerPro-Excel.log
-            Errors      // TypeManagerPro-Errors.log
-        }
-
-        #endregion
-
-        #region Constructor
-
-        static Logger()
-        {
-            // Fixed logs folder: C:\ProgramData\IB-BIM\TypeManagerPro\Logs
-            LogDirectory = @"C:\ProgramData\IB-BIM\TypeManagerPro\Logs";
-
-            try
-            {
-                if (!Directory.Exists(LogDirectory))
-                {
-                    Directory.CreateDirectory(LogDirectory);
-                }
-            }
-            catch 
-            {
-                // If can't create in ProgramData, fallback to AppData
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                LogDirectory = Path.Combine(appData, "IB-BIM", "TypeManagerPro", "Logs");
-
-                try
-                {
-                    if (!Directory.Exists(LogDirectory))
-                    {
-                        Directory.CreateDirectory(LogDirectory);
-                    }
-                }
-                catch
-                {
-                    // Last resort: temp folder
-                    LogDirectory = Path.Combine(Path.GetTempPath(), "IB-BIM", "TypeManagerPro", "Logs");
-                    Directory.CreateDirectory(LogDirectory);
-                }
-            }
-        }
-
-        #endregion
-
-        #region Public Methods
-
-        /// <summary>
-        /// Logs an Info message
-        /// </summary>
-        public static void Info(LogCategory category, string message, string details = null)
-        {
-            Log(category, "INFO", message, details);
+            Main,
+            General,
+            Rename,
+            Import,
+            Export,
+            Validation,
+            UI
         }
 
         /// <summary>
-        /// Logs a Warning message
+        /// Initializes the logger with a fresh log file
         /// </summary>
-        public static void Warning(LogCategory category, string message, string details = null)
+        public static void Initialize()
         {
-            Log(category, "WARN", message, details);
-
-            // Also log to Errors file
-            if (category != LogCategory.Errors)
-            {
-                Log(LogCategory.Errors, "WARN", $"[{category}] {message}", details);
-            }
+            Initialize(null, null);
         }
 
-        /// <summary>
-        /// Logs an Error message
-        /// </summary>
-        public static void Error(LogCategory category, string message, Exception ex = null)
-        {
-            string details = ex != null ? GetExceptionDetails(ex) : null;
-            Log(category, "ERROR", message, details);
-
-            // Also log to Errors file
-            if (category != LogCategory.Errors)
-            {
-                Log(LogCategory.Errors, "ERROR", $"[{category}] {message}", details);
-            }
-        }
 
         /// <summary>
-        /// Logs a Debug message (only in Debug builds)
+        /// Initializes the logger with a fresh log file (with app name and version)
         /// </summary>
-        [System.Diagnostics.Conditional("DEBUG")]
-        public static void Debug(LogCategory category, string message, string details = null)
-        {
-            Log(category, "DEBUG", message, details);
-        }
-
-        /// <summary>
-        /// Logs method entry (for debugging)
-        /// </summary>
-        [System.Diagnostics.Conditional("DEBUG")]
-        public static void MethodEntry(LogCategory category, string className, string methodName)
-        {
-            Log(category, "ENTRY", $"{className}.{methodName}()");
-        }
-
-        /// <summary>
-        /// Logs method exit (for debugging)
-        /// </summary>
-        [System.Diagnostics.Conditional("DEBUG")]
-        public static void MethodExit(LogCategory category, string className, string methodName)
-        {
-            Log(category, "EXIT", $"{className}.{methodName}()");
-        }
-
-        #endregion
-
-        #region Private Methods
-
-        /// <summary>
-        /// Main logging method - SYNCHRONOUS to ensure logs are written immediately
-        /// This prevents log loss in case of crashes or async operations
-        /// </summary>
-        private static void Log(LogCategory category, string level, string message, string details = null)
+        public static void Initialize(string appName, string version)
         {
             try
             {
-                string logFile = GetLogFilePath(category);
-                string logEntry = FormatLogEntry(level, message, details);
+                // Keep the original ProgramData location
+                string logFolder = @"C:\ProgramData\IB-BIM\TypeManagerPro\Logs";
 
-                // SYNCHRONOUS write with lock - ensures logs are written immediately
-                // Even if app crashes or async operations fail, logs will be persisted
-                lock (LockObject)
+                if (!Directory.Exists(logFolder))
                 {
-                    // Using AppendAllText for immediate flush to disk
-                    File.AppendAllText(logFile, logEntry, Encoding.UTF8);
+                    Directory.CreateDirectory(logFolder);
                 }
 
-                // Also write to Debug output
-                System.Diagnostics.Debug.WriteLine(logEntry.TrimEnd());
-            }
-            catch
-            {
-                // Silent fail - don't want logging to crash the app
-                // Could write to Event Log here as last resort if needed
-            }
-        }
+                // Same log file name - overwrites on each run
+                _logPath = Path.Combine(logFolder, "TypeManagerPro.log");
 
-        /// <summary>
-        /// Gets log file path for category
-        /// </summary>
-        private static string GetLogFilePath(LogCategory category)
-        {
-            string fileName = $"TypeManagerPro-{category}.log";
-            return Path.Combine(LogDirectory, fileName);
-        }
+                // append: false = overwrite the file each time
+                _logWriter = new StreamWriter(_logPath, append: false);
+                _logWriter.AutoFlush = true;
 
-        /// <summary>
-        /// Formats log entry
-        /// </summary>
-        private static string FormatLogEntry(string level, string message, string details = null)
-        {
-            var sb = new StringBuilder();
-
-            // Timestamp | Level | Message
-            sb.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level,-5}] {message}");
-
-            // Details (if provided)
-            if (!string.IsNullOrEmpty(details))
-            {
-                sb.AppendLine($"  Details: {details}");
-            }
-
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Gets exception details including inner exceptions
-        /// </summary>
-        private static string GetExceptionDetails(Exception ex)
-        {
-            var sb = new StringBuilder();
-
-            sb.AppendLine($"Exception: {ex.GetType().Name}");
-            sb.AppendLine($"Message: {ex.Message}");
-
-            if (!string.IsNullOrEmpty(ex.StackTrace))
-            {
-                sb.AppendLine($"StackTrace: {ex.StackTrace}");
-            }
-
-            // Inner exception
-            if (ex.InnerException != null)
-            {
-                sb.AppendLine("Inner Exception:");
-                sb.Append(GetExceptionDetails(ex.InnerException));
-            }
-
-            return sb.ToString();
-        }
-
-        #endregion
-
-        #region Initialization
-
-        /// <summary>
-        /// Initializes the logger - should be called at application startup
-        /// </summary>
-        public static void Initialize(string appName = "Type Manager Pro", string version = null)
-        {
-            try
-            {
-                // Write session separator
-                WriteSeparator(LogCategory.Main);
-
-                // Log application startup
-                Info(LogCategory.Main, "=".PadRight(80, '='));
-                Info(LogCategory.Main, $"{appName} - SESSION STARTED");
-                Info(LogCategory.Main, "=".PadRight(80, '='));
-
-                // Log version
-                if (!string.IsNullOrEmpty(version))
+                Info(LogCategory.General, $"=== Type Manager Pro Log Started - {DateTime.Now} ===");
+                if (!string.IsNullOrEmpty(appName))
                 {
-                    Info(LogCategory.Main, $"Version: {version}");
+                    Info(LogCategory.General, $"Application: {appName} v{version}");
                 }
-
-                // Log environment info
-                Info(LogCategory.Main, $"Date/Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                Info(LogCategory.Main, $"OS: {Environment.OSVersion}");
-                Info(LogCategory.Main, $"Machine: {Environment.MachineName}");
-                Info(LogCategory.Main, $"User: {Environment.UserName}");
-                Info(LogCategory.Main, $"CLR Version: {Environment.Version}");
-                Info(LogCategory.Main, $"Log Directory: {LogDirectory}");
-
-                // Log Revit info (will be added by caller)
-
-                Info(LogCategory.Main, "-".PadRight(80, '-'));
-
-                // Clean old logs
-                CleanOldLogs();
-
-                Info(LogCategory.Main, "Logger initialized successfully");
+                Info(LogCategory.General, $"Log file: {_logPath}");
             }
             catch (Exception ex)
             {
-                // If initialization fails, log to Errors at least
-                Error(LogCategory.Errors, "Logger initialization failed", ex);
+                // If logging fails, silently continue
+                System.Diagnostics.Debug.WriteLine($"Logger initialization failed: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Logs Revit-specific information
+        /// Closes the log file
         /// </summary>
-        public static void LogRevitInfo(string revitVersion, string documentName = null)
+        public static void Close()
         {
             try
             {
-                Info(LogCategory.Main, $"Revit Version: {revitVersion}");
-
-                if (!string.IsNullOrEmpty(documentName))
+                if (_logWriter != null)
                 {
-                    Info(LogCategory.Main, $"Document: {documentName}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Error(LogCategory.Main, "Failed to log Revit info", ex);
-            }
-        }
-
-        /// <summary>
-        /// Logs application shutdown
-        /// </summary>
-        public static void Shutdown()
-        {
-            try
-            {
-                Info(LogCategory.Main, "-".PadRight(80, '-'));
-                Info(LogCategory.Main, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - SESSION ENDED");
-                Info(LogCategory.Main, "=".PadRight(80, '='));
-                WriteSeparator(LogCategory.Main);
-            }
-            catch
-            {
-                // Silent fail
-            }
-        }
-
-        /// <summary>
-        /// Writes a separator line to log
-        /// </summary>
-        private static void WriteSeparator(LogCategory category)
-        {
-            try
-            {
-                string logFile = GetLogFilePath(category);
-                string separator = Environment.NewLine + Environment.NewLine;
-
-                lock (LockObject)
-                {
-                    File.AppendAllText(logFile, separator, Encoding.UTF8);
+                    Info(LogCategory.General, "=== Log Closed ===");
+                    _logWriter.Close();
+                    _logWriter.Dispose();
+                    _logWriter = null;
                 }
             }
             catch { }
         }
 
-        #endregion
+        /// <summary>
+        /// Alias for Close() - for backward compatibility
+        /// </summary>
+        public static void Shutdown()
+        {
+            Close();
+        }
 
-        #region Maintenance Methods
 
         /// <summary>
-        /// Cleans old log files (older than specified days)
+        /// Logs Revit version information
         /// </summary>
-        public static void CleanOldLogs(int daysToKeep = 30)
+        public static void LogRevitInfo(Autodesk.Revit.ApplicationServices.Application app)
         {
             try
             {
-                Logger.Info(LogCategory.Main, $"Cleaning logs older than {daysToKeep} days");
-
-                var cutoffDate = DateTime.Now.AddDays(-daysToKeep);
-                var logFiles = Directory.GetFiles(LogDirectory, "*.log");
-
-                int deletedCount = 0;
-                foreach (var file in logFiles)
+                if (app != null)
                 {
-                    var fileInfo = new FileInfo(file);
-                    if (fileInfo.LastWriteTime < cutoffDate)
-                    {
-                        File.Delete(file);
-                        deletedCount++;
-                    }
+                    Info(LogCategory.General, $"Revit Version: {app.VersionName} ({app.VersionBuild})");
+                    Info(LogCategory.General, $"Revit Language: {app.Language}");
                 }
-
-                Logger.Info(LogCategory.Main, $"Cleaned {deletedCount} old log files");
             }
             catch (Exception ex)
             {
-                Logger.Error(LogCategory.Main, "Failed to clean old logs", ex);
+                Warning(LogCategory.General, "Could not log Revit info", ex.Message);
+            }
+        }
+
+        public static void LogRevitInfo( Autodesk.Revit.ApplicationServices.ControlledApplication app)
+        {
+            try
+            {
+                if (app != null)
+                {
+                    Info(LogCategory.General, $"Revit Version: {app.VersionName}");
+                    Info(LogCategory.General, $"Revit Language: {app.Language}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Warning(LogCategory.General, "Could not log Revit info", ex.Message);
             }
         }
 
         /// <summary>
-        /// Gets current log directory path
+        /// Logs an informational message
         /// </summary>
-        public static string GetLogDirectory()
+        public static void Info(LogCategory category, string message)
         {
-            return LogDirectory;
+            WriteLog("INFO", category, message);
         }
 
-        #endregion
+        /// <summary>
+        /// Logs a warning message
+        /// </summary>
+        public static void Warning(LogCategory category, string message, string details = null)
+        {
+            WriteLog("WARN", category, message + (details != null ? $" - {details}" : ""));
+        }
+
+        /// <summary>
+        /// Logs an error message
+        /// </summary>
+        public static void Error(LogCategory category, string message, Exception ex = null)
+        {
+            string errorMsg = message;
+            if (ex != null)
+            {
+                errorMsg += $" | Exception: {ex.GetType().Name} - {ex.Message}";
+                if (ex.StackTrace != null)
+                {
+                    errorMsg += $"\nStack: {ex.StackTrace}";
+                }
+            }
+            WriteLog("ERROR", category, errorMsg);
+        }
+
+        /// <summary>
+        /// Logs a debug message
+        /// </summary>
+        public static void Debug(LogCategory category, string message)
+        {
+#if DEBUG
+            WriteLog("DEBUG", category, message);
+#endif
+        }
+
+        /// <summary>
+        /// Logs a method entry
+        /// </summary>
+        public static void MethodEntry(LogCategory category, string className, string methodName)
+        {
+#if DEBUG
+            WriteLog("DEBUG", category, $"→ {className}.{methodName}()");
+#endif
+        }
+
+        /// <summary>
+        /// Logs a method exit
+        /// </summary>
+        public static void MethodExit(LogCategory category, string className, string methodName)
+        {
+#if DEBUG
+            WriteLog("DEBUG", category, $"← {className}.{methodName}()");
+#endif
+        }
+
+        /// <summary>
+        /// Core logging method
+        /// </summary>
+        private static void WriteLog(string level, LogCategory category, string message)
+        {
+            if (_logWriter == null)
+            {
+                return;
+            }
+
+            try
+            {
+                lock (_lock)
+                {
+                    string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+                    string logEntry = $"[{timestamp}] [{level,-5}] [{category,-12}] {message}";
+                    _logWriter.WriteLine(logEntry);
+                }
+            }
+            catch
+            {
+                // If logging fails, silently continue
+            }
+        }
+
+        /// <summary>
+        /// Gets the path to the current log file
+        /// </summary>
+        public static string GetLogPath()
+        {
+            return _logPath;
+        }
     }
 }
